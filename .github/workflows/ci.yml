@@ -264,6 +264,10 @@ jobs:
 
       - run: pnpm --dir "$DSH_HARNESS_SOURCE_ROOT" install --frozen-lockfile --ignore-scripts
 
+      # The compat-line type-check resolves against that tree's own sources,
+      # so it needs that tree's dependencies too (its own lockfile, same pnpm).
+      - run: pnpm --dir "$GITHUB_WORKSPACE/.upstream/deepseek-harness-alpha2" install --frozen-lockfile --ignore-scripts
+
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
       # Build validates the installed rc.1 baseline and, with the required
