@@ -334,26 +334,46 @@ console.log('--- C: Ctrl+O is the escape hatch ---')
 console.log('--- E: mouse click toggles the fold ---')
 
 {
-  const rows: Row[] = [{ id: 1, kind: 'user', text: `${HEAD}-user-${'u'.repeat(60_000)}-${TAIL}` }]
+  const rows: Row[] = [
+    { id: 1, kind: 'user', text: `${HEAD}-user-${'u'.repeat(60_000)}-${TAIL}` },
+    // notice 而不是 assistant：notice 行没有任何 expanded 相关装饰，展开态
+    // 逐字节可比（assistant 展开会多一行 metadata，比较会被无关差异污染）。
+    { id: 2, kind: 'notice', text: 'AFTER-ROW-MARKER' },
+  ]
+  let clickedScreen = ''
   await withMessageList(
     // 鼠标事件只在 alternate screen 激活时派发（Ink.dispatchClick 的闸门），
     // 所以这一组必须挂进 AlternateScreen——与真实全屏模式同构。
     () => <AlternateScreen><KeySink /><FoldList rows={rows} /></AlternateScreen>,
     async ({ screen, term, stdin }) => {
       check('E1 folded row shows the marker', packed(screen()).includes(MARKER_PACKED))
+      check('E2 the row below the folded one renders', packed(screen()).includes('AFTER-ROW-MARKER'))
       const head = findText(term, `${HEAD}-user-`)
-      check('E2 the folded row is on screen to click', head !== null)
+      check('E3 the folded row is on screen to click', head !== null, digest(screen()))
       if (head === null) return
       click(stdin, head.col + 1, head.row + 1)
-      check('E3 a click on the folded row expands it',
+      check('E4 a click on the folded row expands it',
         await settled(() => packed(screen()).includes(TAIL)), digest(screen()))
-      check('E4 the expanded row drops the marker', !packed(screen()).includes(MARKER_PACKED))
+      check('E5 the expanded row drops the marker', !packed(screen()).includes(MARKER_PACKED))
+      clickedScreen = packed(screen())
       const tail = findText(term, TAIL)
-      if (tail !== null) {
-        click(stdin, tail.col + 1, tail.row + 1)
-        check('E5 a second click collapses it back',
-          await settled(() => packed(screen()).includes(MARKER_PACKED)), digest(screen()))
-      }
+      // 独立断言：packed() 会吃掉换行，尾巴跨行时 E4 仍可能通过，而这里
+      // findText 会返回 null —— 早退会让「收起失效」悄悄溜过 CI。
+      check('E7 the expanded tail is on screen to click back', tail !== null, digest(screen()))
+      if (tail === null) return
+      click(stdin, tail.col + 1, tail.row + 1)
+      check('E8 a second click collapses it back',
+        await settled(() => packed(screen()).includes(MARKER_PACKED)), digest(screen()))
+    },
+  )
+  // E6：同一批行用 Ctrl+O 展开的“冷渲染”必须与鼠标点开后画出的屏幕完全一致。
+  // 行高缓存/签名若没跟着展开状态失效，点击路径会拿着折叠时的高度去排版
+  // spacer 与窗口，两条路径就会画出不同的屏——这正是要守的不变量。
+  await withMessageList(
+    () => <AlternateScreen><KeySink /><MessageList rows={rows} {...listProps} expanded /></AlternateScreen>,
+    async ({ screen }) => {
+      check('E6 expanding by click paints exactly what Ctrl+O paints',
+        packed(screen()) === clickedScreen && clickedScreen !== '', digest(screen()))
     },
   )
 }

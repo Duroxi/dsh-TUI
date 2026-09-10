@@ -197,7 +197,13 @@ function signatureParts(
       break
     default:
       // user / notice / interrupt / local / local-output: height follows
-      // text + columns alone (selection/background never change height).
+      // text + columns alone (selection/background never change height) —
+      // EXCEPT the long-line fold: expanding a folded row swaps ~10 rows of
+      // folded text for the raw line (thousands), so both expansion switches
+      // are height inputs here too. Without them the stale cached height
+      // feeds topPad/bottomPad and the offsets scan, and the expanded tail
+      // can end up unreachable behind a wrong scroll range.
+      signatureScratch.push(expanded, expandedRows.has(row.id))
       break
   }
   return signatureScratch
@@ -1388,9 +1394,10 @@ function TranscriptRow({
   const displayText = expanded || isExpanded ? text : folded.text
   // Mouse toggle: only a row that ACTUALLY hides something is clickable (an
   // ordinary message stays inert so plain clicks and drag-selection keep
-  // working there), and never mid-stream — a live row paints the revealed
-  // slice, so "expand" would not mean anything yet.
-  const foldClickable = foldable && folded.hiddenChars > 0 && !streaming
+  // working there). A streaming row is clickable too — the same contract the
+  // tool card has while running: the click paints the full ARRIVED text, and
+  // the reveal keeps growing it.
+  const foldClickable = foldable && folded.hiddenChars > 0
 
   switch (kind) {
     case 'user':
