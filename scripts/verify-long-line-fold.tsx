@@ -378,6 +378,24 @@ console.log('--- E: mouse click toggles the fold ---')
   )
 }
 
+// 流式 assistant 行：折叠态同样要能点开（走的是独立的 streaming 分支，
+// 状态与落定行分开，接线漏掉就会出现「显示折叠标记却点不动」）。
+{
+  const rows: Row[] = [{ id: 1, kind: 'assistant', text: `${HEAD}-stream-${'s'.repeat(60_000)}-${TAIL}`, streaming: true }]
+  await withMessageList(
+    () => <AlternateScreen><KeySink /><FoldList rows={rows} /></AlternateScreen>,
+    async ({ screen, term, stdin }) => {
+      check('E9 streaming row folds and shows the marker', packed(screen()).includes(MARKER_PACKED), digest(screen()))
+      const head = findText(term, `${HEAD}-stream-`)
+      check('E10 the streaming row is on screen to click', head !== null, digest(screen()))
+      if (head === null) return
+      click(stdin, head.col + 1, head.row + 1)
+      check('E11 a click on the streaming row expands the arrived text',
+        await settled(() => packed(screen()).includes(TAIL)), digest(screen()))
+    },
+  )
+}
+
 // ---------------------------------------------------------------------------
 // D — component-level contracts
 // ---------------------------------------------------------------------------

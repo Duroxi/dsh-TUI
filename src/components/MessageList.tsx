@@ -1426,6 +1426,7 @@ function TranscriptRow({
           width="100%"
           backgroundColor={background}
           ref={ref}
+          onClick={foldClickable ? foldOnClick : undefined}
         >
           <Box minWidth={2}>
             <Text color="text">●</Text>
